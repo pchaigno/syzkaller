@@ -161,7 +161,7 @@ bpf_insn [
 	ldst	bpf_insn_ldst
 	alu	bpf_insn_alu
 	jmp	bpf_insn_jmp
-	call	bpf_insn_call_helper
+	call	bpf_insn_call_helpers
 	func	bpf_insn_call_func
 	exit	bpf_insn_exit
 	initr0	bpf_insn_init_r0
@@ -257,11 +257,77 @@ define BPF_JLE0	BPF_JLE >> 4
 define BPF_JSLT0	BPF_JSLT >> 4
 define BPF_JSLE0	BPF_JSLE >> 4
 
+bpf_insn_call_helpers [
+	generic		bpf_insn_call_helper
+	map_helpers	bpf_insn_call_map_helpers
+	map_update	bpf_insn_call_map_update
+] [varlen]
+
 bpf_insn_call_helper {
 	code	const[bpf_call_code, int8]
 	regs	const[0, int8]
 	off	const[0, int16]
 	func	int32[0:__BPF_FUNC_MAX_ID]
+}
+
+bpf_insn_call_map_helpers {
+	map_in_r1	bpf_insn_map_in_r1
+
+	r2_code_class	const[BPF_ALU64, int8:3]
+	r2_code_s	const[BPF_X, int8:1]
+	r2_code_op	const[BPF_MOV0, int8:4]
+	r2_dst		const[BPF_REG_2, int8:4]
+	r2_src		const[BPF_REG_10, int8:4]
+	r2_off		const[0, int16]
+	r2_imm		const[0, int32]
+
+	code		const[bpf_call_code, int8]
+	regs		const[0, int8]
+	off		const[0, int16]
+	func		flags[bpf_map_helpers, int32]
+}
+
+bpf_map_helpers = BPF_FUNC_map_lookup_elem, BPF_FUNC_map_delete_elem, BPF_FUNC_map_pop_elem, BPF_FUNC_map_peek_elem
+
+bpf_insn_call_map_update {
+	map_in_r1	bpf_insn_map_in_r1
+
+	st_code_class	const[BPF_ST, int8:3]
+	st_code_size	const[BPF_DW0, int8:2]
+	st_code_mode	const[BPF_IMM0, int8:3]
+	st_dst		flags[bpf_reg, int8:4]
+	st_src		flags[bpf_reg, int8:4]
+	st_off		const[0, int16]
+	st_imm		flags[bpf_insn_immediates, int32]
+
+	r2_code_class	const[BPF_ALU64, int8:3]
+	r2_code_s	const[BPF_X, int8:1]
+	r2_code_op	const[BPF_MOV0, int8:4]
+	r2_dst		const[BPF_REG_2, int8:4]
+	r2_src		const[BPF_REG_10, int8:4]
+	r2_off		const[0, int16]
+	r2_imm		const[0, int32]
+
+	r3_code_class	const[BPF_ALU64, int8:3]
+	r3_code_s	const[BPF_X, int8:1]
+	r3_code_op	const[BPF_MOV0, int8:4]
+	r3_dst		const[BPF_REG_3, int8:4]
+	r3_src		const[BPF_REG_10, int8:4]
+	r3_off		const[0, int16]
+	r3_imm		const[0, int32]
+
+	r4_code_class	const[BPF_ALU64, int8:3]
+	r4_code_s	const[BPF_K, int8:1]
+	r4_code_op	const[BPF_MOV0, int8:4]
+	r4_dst		const[BPF_REG_4, int8:4]
+	r4_src		const[0, int8:4]
+	r4_off		const[0, int16]
+	r4_imm		flags[bpf_map_flags, int32]
+
+	code		const[bpf_call_code, int8]
+	regs		const[0, int8]
+	off		const[0, int16]
+	func		const[BPF_FUNC_map_update_elem, int32]
 }
 
 bpf_insn_call_func {
@@ -299,6 +365,18 @@ bpf_insn_init_r0 {
 bpf_insn_map {
 	code	const[bpf_insn_load_imm_dw, int8]
 	dst	flags[bpf_reg, int8:4]
+	src	const[BPF_PSEUDO_MAP_FD, int8:4]
+	off	const[0, int16]
+	imm	fd_bpf_map
+	code2	const[0, int8]
+	regs2	const[0, int8]
+	off2	const[0, int16]
+	imm2	const[0, int32]
+}
+
+bpf_insn_map_in_r1 {
+	code	const[bpf_insn_load_imm_dw, int8]
+	dst	const[BPF_REG_1, int8:4]
 	src	const[BPF_PSEUDO_MAP_FD, int8:4]
 	off	const[0, int16]
 	imm	fd_bpf_map
