@@ -146,7 +146,7 @@ bpf_line_info {
 }
 
 bpf_instructions [
-	raw	array[bpf_insn]
+#	raw	array[bpf_insn]
 	framed	bpf_framed_program
 ] [varlen]
 

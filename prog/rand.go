@@ -623,6 +623,29 @@ func (r *randGen) generateArgImpl(s *state, typ Type, ignoreSpecial bool) (arg A
 		}
 	}
 
+	if st, ok := typ.(*StructType); ok {
+		if st.Key.Name == "bpf_framed_program" {
+			var calls []*Call
+			inner := make([]Arg, len(st.Fields) - 1)
+
+			for i, subtype := range st.Fields {
+				switch subtype.(type) {
+				case *StructType:
+					a1, c1 := r.generateArg(s, st.Fields[i])
+					inner[i] = a1
+					calls = append(calls, c1...)
+				case *ArrayType:
+					var empty []Arg
+					inner[1] = &GroupArg{ArgCommon: ArgCommon{typ: st}, Inner: empty}
+				default:
+					panic("Unknown type for bpf_framed_program!")
+				}
+			}
+
+			return &GroupArg{ArgCommon: ArgCommon{typ: st}, Inner: inner}, calls
+		}
+	}
+
 	if !ignoreSpecial && typ.Dir() != DirOut {
 		switch typ.(type) {
 		case *StructType, *UnionType:
