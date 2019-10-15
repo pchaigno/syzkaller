@@ -185,15 +185,24 @@ func (ctx *context) generateCalls(p prog.ExecProg, trace bool) ([]string, []uint
 	for ci, call := range p.Calls {
 		w := new(bytes.Buffer)
 		// Copyin.
+		callName := call.Meta.CallName
+		progLoadBaseAddr := uint64(0)
+		progLoadBufferAddr := uint64(0)
+		if callName == "bpf" && len(call.Args) > 2 {
+			if constArg, ok := call.Args[0].(prog.ExecArgConst); ok && constArg.Value == 5 {
+				if constArg, ok = call.Args[1].(prog.ExecArgConst); ok {
+					progLoadBaseAddr = constArg.Value
+				}
+			}
+		}
 		for _, copyin := range call.Copyin {
-			ctx.copyin(w, &csumSeq, copyin)
+			ctx.copyin(w, &csumSeq, copyin, progLoadBaseAddr, &progLoadBufferAddr)
 		}
 
 		if ctx.opts.Fault && ctx.opts.FaultCall == ci {
 			fmt.Fprintf(w, "\tinject_fault(%v);\n", ctx.opts.FaultNth)
 		}
 		// Call itself.
-		callName := call.Meta.CallName
 		resCopyout := call.Index != prog.ExecNoCopyout
 		argCopyout := len(call.Copyout) != 0
 		emitCall := ctx.opts.EnableTun ||
@@ -202,7 +211,7 @@ func (ctx *context) generateCalls(p prog.ExecProg, trace bool) ([]string, []uint
 		// TODO: if we don't emit the call we must also not emit copyin, copyout and fault injection.
 		// However, simply skipping whole iteration breaks tests due to unused static functions.
 		if emitCall {
-			ctx.emitCall(w, call, ci, resCopyout || argCopyout, trace)
+			ctx.emitCall(w, call, ci, resCopyout || argCopyout, trace, progLoadBufferAddr)
 		} else if trace {
 			fmt.Fprintf(w, "\t(void)res;\n")
 		}
@@ -216,7 +225,7 @@ func (ctx *context) generateCalls(p prog.ExecProg, trace bool) ([]string, []uint
 	return calls, p.Vars
 }
 
-func (ctx *context) emitCall(w *bytes.Buffer, call prog.ExecCall, ci int, haveCopyout, trace bool) {
+func (ctx *context) emitCall(w *bytes.Buffer, call prog.ExecCall, ci int, haveCopyout, trace bool, progLoadBufferAddr uint64) {
 	callName := call.Meta.CallName
 	native := ctx.sysTarget.SyscallNumbers && !strings.HasPrefix(callName, "syz_")
 	fmt.Fprintf(w, "\t")
@@ -270,6 +279,9 @@ func (ctx *context) emitCall(w *bytes.Buffer, call prog.ExecCall, ci int, haveCo
 		}
 		fmt.Fprintf(w, "\tfprintf(stderr, \"### call=%v errno=%%u\\n\", %vres == -1 ? errno : 0);\n", ci, cast)
 	}
+	if progLoadBufferAddr != 0 {
+		fmt.Fprintf(w, "\tprintf(\"%%s\\n\", (char *)0x%x);", progLoadBufferAddr)
+	}
 }
 
 func (ctx *context) emitCallName(w *bytes.Buffer, call prog.ExecCall, native bool) {
@@ -308,11 +320,13 @@ func (ctx *context) generateCsumInet(w *bytes.Buffer, addr uint64, arg prog.Exec
 		addr, csumSeq)
 }
 
-func (ctx *context) copyin(w *bytes.Buffer, csumSeq *int, copyin prog.ExecCopyin) {
+func (ctx *context) copyin(w *bytes.Buffer, csumSeq *int, copyin prog.ExecCopyin, progLoadBaseAddr uint64,
+			progLoadBufferAddr *uint64) {
 	switch arg := copyin.Arg.(type) {
 	case prog.ExecArgConst:
 		if arg.BitfieldOffset == 0 && arg.BitfieldLength == 0 {
-			ctx.copyinVal(w, copyin.Addr, arg.Size, ctx.constArgToStr(arg, true), arg.Format)
+			ctx.copyinVal(w, copyin.Addr, arg.Size, ctx.constArgToStr(arg, true),
+				arg.Format, progLoadBaseAddr, progLoadBufferAddr)
 		} else {
 			if arg.Format != prog.FormatNative && arg.Format != prog.FormatBigEndian {
 				panic("bitfield+string format")
@@ -326,7 +340,8 @@ func (ctx *context) copyin(w *bytes.Buffer, csumSeq *int, copyin prog.ExecCopyin
 				arg.BitfieldOffset, arg.BitfieldLength)
 		}
 	case prog.ExecArgResult:
-		ctx.copyinVal(w, copyin.Addr, arg.Size, ctx.resultArgToStr(arg), arg.Format)
+		ctx.copyinVal(w, copyin.Addr, arg.Size, ctx.resultArgToStr(arg), arg.Format,
+			progLoadBaseAddr, progLoadBufferAddr)
 	case prog.ExecArgData:
 		fmt.Fprintf(w, "\tNONFAILING(memcpy((void*)0x%x, \"%s\", %v));\n",
 			copyin.Addr, toCString(arg.Data, arg.Readable), len(arg.Data))
@@ -343,9 +358,21 @@ func (ctx *context) copyin(w *bytes.Buffer, csumSeq *int, copyin prog.ExecCopyin
 	}
 }
 
-func (ctx *context) copyinVal(w *bytes.Buffer, addr, size uint64, val string, bf prog.BinaryFormat) {
+func (ctx *context) copyinVal(w *bytes.Buffer, addr, size uint64, val string, bf prog.BinaryFormat,
+			progLoadBaseAddr uint64, progLoadBufferAddr *uint64) {
 	switch bf {
 	case prog.FormatNative, prog.FormatBigEndian:
+		switch addr - progLoadBaseAddr {
+		case 0x18: /* log_level */
+			if val != "1" {
+				val = "1"
+			}
+		case 0x1C: /* log_size */
+			val = "0x500000"
+		case 0x20: /* log_buf */
+			*progLoadBufferAddr = 0x20500000
+			val = "0x20500000"
+		}
 		fmt.Fprintf(w, "\tNONFAILING(*(uint%v*)0x%x = %v);\n", size*8, addr, val)
 	case prog.FormatStrDec:
 		if size != 20 {
