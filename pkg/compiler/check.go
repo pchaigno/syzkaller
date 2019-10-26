@@ -401,13 +401,25 @@ func (comp *compiler) checkLenTargetRec(t0, t *ast.Type, targets []*ast.Type,
 			return
 		}
 		typ, desc := comp.derefPointers(fld.Type)
+		path := target.Ident
+		if desc == typeArray && targets[0].Ident == prog.ElemRef {
+			// Next target is random array elem, so we skip it.
+			if len(targets) == 1 {
+				return
+			}
+			typ = typ.Args[0]
+			desc = comp.getTypeDesc(typ)
+			path += ":elem"
+			target = targets[0]
+			targets = targets[1:]
+		}
 		if desc != typeStruct {
-			comp.error(target.Pos, "%v path %v does not refer to a struct", t.Ident, target.Ident)
+			comp.error(target.Pos, "%v path %v does not refer to a struct", t.Ident, path)
 			return
 		}
 		s := comp.structs[typ.Ident]
 		if s.IsUnion {
-			comp.error(target.Pos, "%v path %v does not refer to a struct", t.Ident, target.Ident)
+			comp.error(target.Pos, "%v path %v does not refer to a struct", t.Ident, path)
 			return
 		}
 		parents = append(parents, parentDesc{name: parentTargetName(s), fields: s.Fields})

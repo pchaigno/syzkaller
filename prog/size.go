@@ -13,9 +13,11 @@ const (
 	ParentRef = "parent"
 	// Special reference directly to syscall arguments used in len targets.
 	SyscallRef = "syscall"
+	// Special reference to arbitrary element of array.
+	ElemRef = "elem"
 )
 
-func (target *Target) assignSizes(args []Arg, parentsMap map[Arg]Arg, syscallArgs []Arg, autos map[Arg]bool) {
+func (r *randGen) assignSizes(args []Arg, parentsMap map[Arg]Arg, syscallArgs []Arg, autos map[Arg]bool) {
 	for _, arg := range args {
 		if arg = InnerArg(arg); arg == nil {
 			continue // Pointer to optional len field, no need to fill in value.
@@ -32,14 +34,14 @@ func (target *Target) assignSizes(args []Arg, parentsMap map[Arg]Arg, syscallArg
 		}
 		a := arg.(*ConstArg)
 		if typ.Path[0] == SyscallRef {
-			target.assignSize(a, nil, typ.Path[1:], syscallArgs, parentsMap)
+			r.assignSize(a, nil, typ.Path[1:], syscallArgs, parentsMap)
 		} else {
-			target.assignSize(a, a, typ.Path, args, parentsMap)
+			r.assignSize(a, a, typ.Path, args, parentsMap)
 		}
 	}
 }
 
-func (target *Target) assignSize(dst *ConstArg, pos Arg, path []string, args []Arg, parentsMap map[Arg]Arg) {
+func (r *randGen) assignSize(dst *ConstArg, pos Arg, path []string, args []Arg, parentsMap map[Arg]Arg) {
 	elem := path[0]
 	path = path[1:]
 	var offset uint64
@@ -56,18 +58,39 @@ func (target *Target) assignSize(dst *ConstArg, pos Arg, path []string, args []A
 			return
 		}
 		if len(path) == 0 {
-			dst.Val = target.computeSize(buf, offset, dst.Type().(*LenType))
+			dst.Val = r.target.computeSize(buf, offset, dst.Type().(*LenType))
+		} else if _, ok := buf.(*DataArg); ok && path[0] == ElemRef && len(path) == 1 {
+			if r.Rand != nil {
+				bitSize := dst.Type().(*LenType).BitSize
+				dst.Val = offset*8/bitSize + r.rand(int(buf.Size()*8/bitSize))
+			}
 		} else {
-			target.assignSize(dst, buf, path, buf.(*GroupArg).Inner, parentsMap)
+			r.assignSize(dst, buf, path, buf.(*GroupArg).Inner, parentsMap)
 		}
 		return
 	}
 	if elem == ParentRef {
 		buf := parentsMap[pos]
 		if len(path) == 0 {
-			dst.Val = target.computeSize(buf, noOffset, dst.Type().(*LenType))
+			dst.Val = r.target.computeSize(buf, noOffset, dst.Type().(*LenType))
 		} else {
-			target.assignSize(dst, buf, path, buf.(*GroupArg).Inner, parentsMap)
+			r.assignSize(dst, buf, path, buf.(*GroupArg).Inner, parentsMap)
+		}
+		return
+	}
+	if elem == ElemRef {
+		if r.Rand != nil {
+			if len(args) == 0 {
+				// If target array is empty, we default to 0.
+				dst.Val = 0
+				return
+			}
+			buf := args[r.rand(len(args))]
+			if len(path) == 0 {
+				dst.Val = r.target.computeSize(buf, offset, dst.Type().(*LenType))
+			} else {
+				r.assignSize(dst, buf, path, buf.(*GroupArg).Inner, parentsMap)
+			}
 		}
 		return
 	}
@@ -81,9 +104,9 @@ func (target *Target) assignSize(dst *ConstArg, pos Arg, path []string, args []A
 			continue
 		}
 		if len(path) == 0 {
-			dst.Val = target.computeSize(buf, noOffset, dst.Type().(*LenType))
+			dst.Val = r.target.computeSize(buf, noOffset, dst.Type().(*LenType))
 		} else {
-			target.assignSize(dst, buf, path, buf.(*GroupArg).Inner, parentsMap)
+			r.assignSize(dst, buf, path, buf.(*GroupArg).Inner, parentsMap)
 		}
 		return
 	}
@@ -123,29 +146,35 @@ func (target *Target) computeSize(arg Arg, offset uint64, lenType *LenType) uint
 	}
 }
 
-func (target *Target) assignSizesArray(args []Arg, autos map[Arg]bool) {
+func (r *randGen) assignSizesArray(args []Arg, autos map[Arg]bool) {
 	parentsMap := make(map[Arg]Arg)
 	for _, arg := range args {
 		ForeachSubArg(arg, func(arg Arg, _ *ArgCtx) {
-			if _, ok := arg.Type().(*StructType); ok {
+			switch arg.Type().(type) {
+			case *StructType, *ArrayType:
 				for _, field := range arg.(*GroupArg).Inner {
 					parentsMap[InnerArg(field)] = arg
 				}
+			case *UnionType:
+				parentsMap[InnerArg(arg.(*UnionArg).Option)] = arg
 			}
 		})
 	}
-	target.assignSizes(args, parentsMap, args, autos)
+	r.assignSizes(args, parentsMap, args, autos)
 	for _, arg := range args {
 		ForeachSubArg(arg, func(arg Arg, _ *ArgCtx) {
-			if _, ok := arg.Type().(*StructType); ok {
-				target.assignSizes(arg.(*GroupArg).Inner, parentsMap, args, autos)
+			switch arg.Type().(type) {
+			case *StructType, *ArrayType:
+				r.assignSizes(arg.(*GroupArg).Inner, parentsMap, args, autos)
+			case *UnionType:
+				r.assignSizes([]Arg{arg.(*UnionArg).Option}, parentsMap, args, autos)
 			}
 		})
 	}
 }
 
-func (target *Target) assignSizesCall(c *Call) {
-	target.assignSizesArray(c.Args, nil)
+func (r *randGen) assignSizesCall(c *Call) {
+	r.assignSizesArray(c.Args, nil)
 }
 
 func (r *randGen) mutateSize(arg *ConstArg, parent []Arg) bool {

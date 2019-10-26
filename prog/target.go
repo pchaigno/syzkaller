@@ -219,7 +219,7 @@ func (g *Gen) GenerateSpecialArg(typ Type, pcalls *[]*Call) Arg {
 func (g *Gen) generateArg(typ Type, pcalls *[]*Call, ignoreSpecial bool) Arg {
 	arg, calls := g.r.generateArgImpl(g.s, typ, ignoreSpecial)
 	*pcalls = append(*pcalls, calls...)
-	g.r.target.assignSizesArray([]Arg{arg}, nil)
+	g.r.assignSizesArray([]Arg{arg}, nil)
 	return arg
 }
 
@@ -261,7 +261,8 @@ func MakeProgGen(target *Target) *Builder {
 }
 
 func (pg *Builder) Append(c *Call) error {
-	pg.target.assignSizesCall(c)
+	r := newFakeRand(pg.target)
+	r.assignSizesCall(c)
 	pg.target.SanitizeCall(c)
 	pg.p.Calls = append(pg.p.Calls, c)
 	return nil

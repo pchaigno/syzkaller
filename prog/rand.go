@@ -31,6 +31,14 @@ func newRand(target *Target, rs rand.Source) *randGen {
 	}
 }
 
+func newFakeRand(target *Target) *randGen {
+	return &randGen{
+		Rand:     nil,
+		target:   target,
+		recDepth: nil,
+	}
+}
+
 func (r *randGen) rand(n int) uint64 {
 	return uint64(r.Intn(n))
 }
@@ -522,7 +530,7 @@ func (r *randGen) generateParticularCall(s *state, meta *Syscall) (calls []*Call
 		Ret:  MakeReturnArg(meta.Ret),
 	}
 	c.Args, calls = r.generateArgs(s, meta.Args)
-	r.target.assignSizesCall(c)
+	r.assignSizesCall(c)
 	calls = append(calls, c)
 	for _, c1 := range calls {
 		r.target.SanitizeCall(c1)

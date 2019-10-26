@@ -971,9 +971,11 @@ func (p *parser) auto(arg Arg) Arg {
 }
 
 func (p *parser) fixupAutos(prog *Prog) {
+	// We don't want to generate anything random while deserializing.
+	r := newFakeRand(p.target)
 	s := analyze(nil, nil, prog, nil)
 	for _, c := range prog.Calls {
-		p.target.assignSizesArray(c.Args, p.autos)
+		r.assignSizesArray(c.Args, p.autos)
 		ForeachArg(c, func(arg Arg, _ *ArgCtx) {
 			if !p.autos[arg] {
 				return

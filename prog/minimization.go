@@ -31,9 +31,13 @@ func Minimize(p0 *Prog, callIndex0 int, crash bool, pred0 func(*Prog, int) bool)
 	p0, callIndex0 = removeCalls(p0, callIndex0, crash, pred)
 
 	// Try to minimize individual args.
+	// We don't want to select new random items inside arrays,
+	// so we use a fake randGen to assign sizes.
+	r := newFakeRand(p0.Target)
 	for i := 0; i < len(p0.Calls); i++ {
 		ctx := &minimizeArgsCtx{
 			target:     p0.Target,
+			rand:       r,
 			p0:         &p0,
 			callIndex0: callIndex0,
 			crash:      crash,
@@ -81,6 +85,7 @@ func removeCalls(p0 *Prog, callIndex0 int, crash bool, pred func(*Prog, int) boo
 
 type minimizeArgsCtx struct {
 	target     *Target
+	rand       *randGen
 	p0         **Prog
 	p          *Prog
 	call       *Call
@@ -140,7 +145,7 @@ func (typ *PtrType) minimize(ctx *minimizeArgsCtx, arg Arg, path string) bool {
 	if !ctx.triedPaths[path+"->"] {
 		removeArg(a.Res)
 		replaceArg(a, MakeSpecialPointerArg(a.Type(), 0))
-		ctx.target.assignSizesCall(ctx.call)
+		ctx.rand.assignSizesCall(ctx.call)
 		if ctx.pred(ctx.p, ctx.callIndex0) {
 			*ctx.p0 = ctx.p
 		}
@@ -163,7 +168,7 @@ func (typ *ArrayType) minimize(ctx *minimizeArgsCtx, arg Arg, path string) bool 
 			copy(a.Inner[i:], a.Inner[i+1:])
 			a.Inner = a.Inner[:len(a.Inner)-1]
 			removeArg(elem)
-			ctx.target.assignSizesCall(ctx.call)
+			ctx.rand.assignSizesCall(ctx.call)
 			if ctx.pred(ctx.p, ctx.callIndex0) {
 				*ctx.p0 = ctx.p
 			}
@@ -250,12 +255,12 @@ func (typ *BufferType) minimize(ctx *minimizeArgsCtx, arg Arg, path string) bool
 	for step := len(a.Data()) - minLen; len(a.Data()) > minLen && step > 0; {
 		if len(a.Data())-step >= minLen {
 			a.data = a.Data()[:len(a.Data())-step]
-			ctx.target.assignSizesCall(ctx.call)
+			ctx.rand.assignSizesCall(ctx.call)
 			if ctx.pred(ctx.p, ctx.callIndex0) {
 				continue
 			}
 			a.data = a.Data()[:len(a.Data())+step]
-			ctx.target.assignSizesCall(ctx.call)
+			ctx.rand.assignSizesCall(ctx.call)
 		}
 		step /= 2
 		if ctx.crash {

@@ -102,6 +102,20 @@ len_expr4 {
 
 foo$len_expr(a ptr[in, len_expr1], b ptr[in, array[int8, 3]])
 
+len_expr5 {
+	f51	offsetof[f54:elem, int32]
+	f52	bytesize[f54:elem:f61, int32]
+	f53	len[f54:elem:f62, int32]
+	f54	array[len_expr6]
+}
+
+len_expr6 {
+	f61	int32
+	f62	array[int8]
+}
+
+foo$elem(a ptr[in, len_expr5])
+
 # Pointer type.
 
 foo$ptr(a ptr[in, int64])

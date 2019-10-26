@@ -137,6 +137,7 @@ foo$202(a ptr[in, s7])
 foo$203(a u1)
 
 foo$204(a ptr[in, slen1])
+foo$205(a ptr[in, slen3])
 
 slen1 {
 	f0 len[parent, int32]
@@ -156,6 +157,19 @@ slen1 {
 
 slen2 {
 	f int32
+}
+
+slen3 {
+	f1 len[slen30:elem:f:a, int32]		### len path f does not refer to a struct
+	f2 len[slen30:elem:f:elem:a, int32]	### len path f:elem does not refer to a struct
+	f3 len[slen31:elem:f:a, int32]		### len path f does not refer to a struct
+	f4 len[slen31:elem:f:elem:a, int32]	### len path f:elem does not refer to a struct
+	slen30 ptr[in, array[slen4]]
+	slen31 array[slen4]
+}
+
+slen4 {
+	f array[int32]
 }
 
 # Resource ctor tests.

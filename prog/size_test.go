@@ -11,11 +11,12 @@ import (
 
 func TestAssignSizeRandom(t *testing.T) {
 	target, rs, iters := initTest(t)
+	r := newRand(target, rs)
 	for i := 0; i < iters; i++ {
 		p := target.Generate(rs, 10, nil)
 		data0 := p.Serialize()
 		for _, call := range p.Calls {
-			target.assignSizesCall(call)
+			r.assignSizesCall(call)
 		}
 		if data1 := p.Serialize(); !bytes.Equal(data0, data1) {
 			t.Fatalf("different lens assigned, initial:\n%s\nnew:\n%s\n", data0, data1)
@@ -23,13 +24,14 @@ func TestAssignSizeRandom(t *testing.T) {
 		p.Mutate(rs, 10, nil, nil)
 		p.Serialize()
 		for _, call := range p.Calls {
-			target.assignSizesCall(call)
+			r.assignSizesCall(call)
 		}
 	}
 }
 
 func TestAssignSize(t *testing.T) {
 	target := initTargetTest(t, "test", "64")
+	r := newFakeRand(target)
 	// nolint: lll
 	tests := []struct {
 		unsizedProg string
@@ -166,7 +168,7 @@ func TestAssignSize(t *testing.T) {
 			t.Fatalf("failed to deserialize prog %v: %v", i, err)
 		}
 		for _, call := range p.Calls {
-			target.assignSizesCall(call)
+			r.assignSizesCall(call)
 		}
 		p1 := strings.TrimSpace(string(p.Serialize()))
 		if p1 != test.sizedProg {
