@@ -269,8 +269,8 @@ type trusty_authorization_elem_t[TAG, DATA] {
 
 trusty_authorization_bytes {
 # NEED: these are length/offset in trusty_authorization_set.indirect_data.
-	data_length	int32
-	offset		int32
+	data_length	offsetof[trusty_authorization_set:indirect_data:data, int32]
+	offset		offsetof[trusty_authorization_set:indirect_data:data, int32]
 } [packed]
 
 define TRUSTY_KM_REQ_SHIFT	2

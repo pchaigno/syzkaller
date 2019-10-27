@@ -21,10 +21,6 @@ type btf_type_id int32[1:5]
 # NEED: opt modified on typedefs, this could be btf_type_id[opt]
 type btf_opt_type_id int32[0:5]
 
-# NEED: offset in bpf_btf_program:strings. We can't express this, so we just use a small index.
-type btf_name_off int32[1:16]
-type btf_opt_name_off int32[0:16]
-
 bpf$MAP_CREATE(cmd const[BPF_MAP_CREATE], arg ptr[in, bpf_map_create_arg], size len[arg]) fd_bpf_map
 bpf$MAP_LOOKUP_ELEM(cmd const[BPF_MAP_LOOKUP_ELEM], arg ptr[in, bpf_map_lookup_arg], size len[arg])
 bpf$MAP_UPDATE_ELEM(cmd const[BPF_MAP_UPDATE_ELEM], arg ptr[in, bpf_map_update_arg], size len[arg])
@@ -140,7 +136,8 @@ bpf_func_info {
 bpf_line_info {
 # This is instruction index, so should not be too large.
 	insn_off	int32[0:5]
-	file_name_off	btf_opt_name_off
+# NEED: Path expression to a related syscall's argument (bpf_btf_program:strings).
+	file_name_off	int32[0:16]
 	line_off	int32
 	line_col	int32
 }
@@ -517,7 +514,7 @@ btf_type [
 
 btf_type_int {
 # Note: this is an offset in bpf_btf_program:strings
-	name_off	btf_opt_name_off
+	name_off	offsetof[bpf_btf_program:strings:data:elem, int32]
 	info_vlen	const[0, int16]
 	info_pad	const[0, int8]
 	info_typ	const[BTF_KIND_INT, int8]
@@ -531,7 +528,7 @@ btf_type_int {
 btf_type_int_encoding = 0, BTF_INT_SIGNED, BTF_INT_CHAR, BTF_INT_BOOL
 
 type btf_type_ref_t[TYP] {
-	name_off	btf_opt_name_off
+	name_off	offsetof[bpf_btf_program:strings:data:elem, int32]
 	info_vlen	const[0, int16]
 	info_pad	const[0, int8]
 	info_typ	const[TYP, int8]
@@ -554,7 +551,7 @@ btf_array {
 }
 
 type btf_type_struct_t[TYP] {
-	name_off	btf_opt_name_off
+	name_off	offsetof[bpf_btf_program:strings:data:elem, int32]
 	info_vlen	len[fields, int16]
 	info_pad	const[0, int8]
 	info_typ	const[TYP, int8:7]
@@ -564,13 +561,13 @@ type btf_type_struct_t[TYP] {
 }
 
 btf_member {
-	name_off	btf_opt_name_off
+	name_off	offsetof[bpf_btf_program:strings:data:elem, int32]
 	type		btf_opt_type_id
 	offset		int32
 }
 
 btf_type_enum {
-	name_off	btf_opt_name_off
+	name_off	offsetof[bpf_btf_program:strings:data:elem, int32]
 	info_vlen	len[values, int16]
 	info_pad	const[0, int8]
 	info_typ	const[BTF_KIND_ENUM, int8]
@@ -579,12 +576,12 @@ btf_type_enum {
 }
 
 btf_enum {
-	name_off	btf_opt_name_off
+	name_off	offsetof[bpf_btf_program:strings:data:elem, int32]
 	val		int32
 }
 
 btf_type_fwd {
-	name_off	btf_name_off
+	name_off	offsetof[bpf_btf_program:strings:data:elem, int32]
 	info_vlen	const[0, int16]
 	info_pad	const[0, int8]
 	info_typ	const[BTF_KIND_FWD, int8]
@@ -592,7 +589,7 @@ btf_type_fwd {
 }
 
 btf_type_func {
-	name_off	btf_name_off
+	name_off	offsetof[bpf_btf_program:strings:data:elem, int32]
 	info_vlen	const[0, int16]
 	info_pad	const[0, int8]
 	info_typ	const[BTF_KIND_FUNC, int8]
@@ -609,12 +606,12 @@ btf_type_func_proto {
 }
 
 btf_param {
-	name_off	btf_opt_name_off
+	name_off	offsetof[bpf_btf_program:strings:data:elem, int32]
 	type		btf_opt_type_id
 }
 
 btf_type_var {
-	name_off	btf_name_off
+	name_off	offsetof[bpf_btf_program:strings:data:elem, int32]
 	info_vlen	const[0, int16]
 	info_pad	const[0, int8]
 	info_typ	const[BTF_KIND_VAR, int8]
@@ -623,7 +620,7 @@ btf_type_var {
 }
 
 btf_type_datasec {
-	name_off	btf_name_off
+	name_off	offsetof[bpf_btf_program:strings:data:elem, int32]
 	info_vlen	len[secinfo, int16]
 	info_pad	const[0, int8]
 	info_typ	const[BTF_KIND_DATASEC, int8]
@@ -634,9 +631,9 @@ btf_type_datasec {
 
 btf_var_secinfo {
 	type	btf_type_id
-# NEED: offset/size are for btf_type_datasec:data and must be increasing and within bounds (see btf_datasec_check_meta)
-	offset	int32
-	size	int32
+# NEED: offset + size should be < bytesize[btf_type_datasec:data] and increasing (see btf_datasec_check_meta)
+	offset	offsetof[btf_type_datasec:data:elem, int32]
+	size	offsetof[btf_type_datasec:data:elem, int32]
 }
 
 bpf_btf_strings {
