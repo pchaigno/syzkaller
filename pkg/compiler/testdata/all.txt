@@ -73,8 +73,8 @@ foo$len_var0(a ptr[in, array[string]], b len[a])
 foo$len_var1(a ptr[in, array[string]], b ptr[in, len[a, int32]])
 
 len_expr1 {
-	f11	len_expr2
-	f12	bytesize[syscall:b, int32]
+	f11	bytesize[syscall:b, int32]
+	f12	len_expr2
 }
 
 len_expr2 {
@@ -90,7 +90,7 @@ len_expr3 {
 	f31	int32
 	f32	bytesize[len_expr2:f21, int32]
 	f33	bytesize[len_expr2:f22:f41, int32]
-	f34	bytesize[len_expr1:f11:f22:f41, int32]
+	f34	bytesize[len_expr1:f12:f22:f41, int32]
 	f35	bytesize[len_expr2:f23:f41, int32]
 	f36	bytesize[len_expr2:f24:f41, int32]
 	f37	offsetof[f32, int32]
