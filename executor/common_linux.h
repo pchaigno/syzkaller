@@ -2041,6 +2041,12 @@ static int do_sandbox_none(void)
 		return wait_for_loop(pid);
 
 	setup_common();
+	if (mkdir("./bpffs", 0700))
+		fail("mkdir(./bpffs) failed");
+	if (mount("bpffs", "./bpffs", "bpf", 0, NULL)) {
+		if (errno != ENODEV)
+			fail("mount(./bpffs) failed");
+	}
 	sandbox_common();
 	drop_caps();
 #if SYZ_EXECUTOR || SYZ_ENABLE_NETDEV
