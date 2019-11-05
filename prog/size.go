@@ -59,11 +59,6 @@ func (r *randGen) assignSize(dst *ConstArg, pos Arg, path []string, args []Arg, 
 		}
 		if len(path) == 0 {
 			dst.Val = r.target.computeSize(buf, offset, dst.Type().(*LenType))
-		} else if _, ok := buf.(*DataArg); ok && path[0] == ElemRef && len(path) == 1 {
-			if r.Rand != nil {
-				bitSize := dst.Type().(*LenType).BitSize
-				dst.Val = offset*8/bitSize + r.rand(int(buf.Size()*8/bitSize))
-			}
 		} else {
 			r.assignSize(dst, buf, path, buf.(*GroupArg).Inner, parentsMap)
 		}
