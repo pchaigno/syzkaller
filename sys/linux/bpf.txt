@@ -161,6 +161,8 @@ bpf_framed_program {
 bpf_insn [
 	generic	bpf_insn_generic
 	ldst	bpf_insn_ldst
+	ldx	bpf_insn_ldx
+	stx	bpf_insn_stx
 	alu	bpf_insn_alu
 	jmp	bpf_insn_jmp
 	call	bpf_insn_call_helper
@@ -189,9 +191,30 @@ bpf_insn_ldst {
 	imm		flags[bpf_insn_immediates, int32]
 }
 
-bpf_ldst_insn = BPF_LD, BPF_LDX, BPF_ST, BPF_STX
+bpf_insn_ldx {
+	code_class	const[BPF_LDX, int8:3]
+	code_size	flags[bpf_ldst_size, int8:2]
+	code_mode	const[BPF_MEM0, int8:3]
+	dst		flags[bpf_reg, int8:4]
+	src		flags[bpf_reg, int8:4]
+	off		flags[bpf_insn_offsets, int16]
+	imm		const[0, int32]
+}
+
+bpf_insn_stx {
+	code_class	const[BPF_STX, int8:3]
+	code_size	flags[bpf_ldst_size, int8:2]
+	code_mode	flags[bpf_stx_mode, int8:3]
+	dst		flags[bpf_reg, int8:4]
+	src		flags[bpf_reg, int8:4]
+	off		flags[bpf_insn_offsets, int16]
+	imm		const[0, int32]
+}
+
+bpf_ldst_insn = BPF_LD, BPF_ST
 bpf_ldst_size = BPF_W0, BPF_H0, BPF_B0, BPF_DW0
 bpf_ldst_mode = BPF_IMM0, BPF_ABS0, BPF_IND0, BPF_MEM0, BPF_XADD0
+bpf_stx_mode = BPF_MEM0, BPF_XADD0
 
 define BPF_W0	BPF_W >> 3
 define BPF_H0	BPF_H >> 3
