@@ -264,6 +264,13 @@ link_create_netfilter {
 	flags		flags[bpf_link_create_netfilter_flags, int32]
 }
 
+id_or_fd [
+	link_fd	fd_bpf_link
+	prog_fd	fd_bpf_prog
+	link_id	bpf_link_id
+	prog_id	bpf_prog_id
+]
+
 link_create_tcx {
 	relative	id_or_fd
 	exp_revision	bpf_revision
@@ -389,22 +396,18 @@ bpf_attach_targets [
 	ifindex	ifindex
 ]
 
-id_or_fd [
-	link_fd	fd_bpf_link
-	prog_fd	fd_bpf_prog
-	link_id	bpf_link_id
-	prog_id	bpf_prog_id
-]
-
 bpf_attach_arg {
 	target		bpf_attach_targets
 	attach_bpf_fd	fd_bpf_prog
 	type		flags[bpf_attach_type, int32]
 	flags		flags[bpf_attach_flags, int32]
 	replace_bpf_fd	fd_bpf_prog
-	relative_obj	id_or_fd
+	link_fd		fd_bpf_link	(if[value[parent:flags] & BPF_F_ID_OR_LINK == BPF_F_LINK])
+	prog_fd		fd_bpf_prog	(if[value[parent:flags] & BPF_F_ID_OR_LINK == 0x0])
+	link_id		bpf_link_id	(if[value[parent:flags] & BPF_F_ID_OR_LINK == BPF_F_ID_OR_LINK])
+	prog_id		bpf_prog_id	(if[value[parent:flags] & BPF_F_ID_OR_LINK == BPF_F_ID])
 	exp_revision	bpf_revision
-}
+} [packed]
 
 bpf_detach_arg {
 	target		bpf_attach_targets
@@ -412,9 +415,12 @@ bpf_detach_arg {
 	type		flags[bpf_attach_type, int32]
 	flags		flags[bpf_mprog_attach_flags, int32]
 	replace_bpf_fd	const[0, int32]
-	relative_obj	id_or_fd
+	link_fd		fd_bpf_link	(if[value[parent:flags] & BPF_F_ID_OR_LINK == BPF_F_LINK])
+	prog_fd		fd_bpf_prog	(if[value[parent:flags] & BPF_F_ID_OR_LINK == 0x0])
+	link_id		bpf_link_id	(if[value[parent:flags] & BPF_F_ID_OR_LINK == BPF_F_ID_OR_LINK])
+	prog_id		bpf_prog_id	(if[value[parent:flags] & BPF_F_ID_OR_LINK == BPF_F_ID])
 	exp_revision	bpf_revision
-}
+} [packed]
 
 bpf_test_prog_arg {
 	prog		fd_bpf_prog
